@@ -31,6 +31,8 @@
 
 #define AVSTREAM_CODEC_PTR(avs_ptr) (avs_ptr->codec)
 
+#define PER_SEC(unit, usec) (((float)(unit)) / ((float)(usec) /1000000))
+#define MB_PER_SEC(size, usec) (PER_SEC((size), (usec)) / (1024 * 1024))
 
 /****************************************************************************
  *  The section below is the "my" section of functions.
@@ -176,7 +178,6 @@ static int timelapse_append(struct ffmpeg *ffmpeg, AVPacket pkt){
     if (!file) return -1;
 
     fwrite(pkt.data,1,pkt.size,file);
-
     fclose(file);
 
     return 0;
@@ -680,6 +681,16 @@ int ffmpeg_put_other_image(struct ffmpeg *ffmpeg, unsigned char *y,
 
     return retcd;
 }
+
+
+
+time_t timediff(struct timeval *start){
+	struct timeval stop;
+	gettimeofday(&stop, NULL);
+	return (stop.tv_sec - start->tv_sec) * 1000000 + stop.tv_usec - start->tv_usec;
+}
+
+
 /**
  * ffmpeg_put_frame
  *      Encodes and writes a video frame using the av_write_frame API. This is
@@ -702,6 +713,7 @@ int ffmpeg_put_frame(struct ffmpeg *ffmpeg, AVFrame *pic){
     struct timeval tv1;
     int64_t pts_interval;
 
+    struct timeval start;
     gettimeofday(&tv1, NULL);
 
     av_init_packet(&pkt); /* Init static structure. */
@@ -733,10 +745,14 @@ int ffmpeg_put_frame(struct ffmpeg *ffmpeg, AVFrame *pic){
         retcd = av_write_frame(ffmpeg->oc, &pkt);
     } else {
         pts_interval = ((1000000L * (tv1.tv_sec - ffmpeg->start_time.tv_sec)) + tv1.tv_usec - ffmpeg->start_time.tv_usec) + 10000;
+	//printf("pts_interval: %" PRId64 "\n", pts_interval);
         pkt.pts = av_rescale_q(pts_interval,(AVRational){1, 1000000L},ffmpeg->video_st->time_base);
         if (pkt.pts <= ffmpeg->last_pts) pkt.pts = ffmpeg->last_pts + 1;
         pkt.dts = pkt.pts;
+	
+	gettimeofday(&start, NULL);
         retcd = av_write_frame(ffmpeg->oc, &pkt);
+	printf("wrote %d bytes, delay: %lld ms, speed: %f MBps\n", pkt.size, (long long) timediff(&start), MB_PER_SEC(pkt.size, timediff(&start)));
         ffmpeg->last_pts = pkt.pts;
     }
 //        MOTION_LOG(ERR, TYPE_ENCODER, NO_ERRNO, "%s: pts:%d dts:%d stream:%d interval %d",pkt.pts,pkt.dts,ffmpeg->video_st->time_base.den,pts_interval);
