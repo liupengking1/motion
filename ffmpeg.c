@@ -34,6 +34,9 @@
 #define PER_SEC(unit, usec) (((float)(unit)) / ((float)(usec) /1000000))
 #define MB_PER_SEC(size, usec) (PER_SEC((size), (usec)) / (1024 * 1024))
 
+static size_t total_size = 0;
+static struct timeval last_write;
+
 /****************************************************************************
  *  The section below is the "my" section of functions.
  *  These are designed to be extremely simple version specific
@@ -556,6 +559,8 @@ struct ffmpeg *ffmpeg_open(const char *ffmpeg_video_codec, char *filename,
         }
 
     }
+    total_size = 0;
+    gettimeofday(&last_write, NULL);
     return ffmpeg;
 }
 /**
@@ -751,8 +756,11 @@ int ffmpeg_put_frame(struct ffmpeg *ffmpeg, AVFrame *pic){
         pkt.dts = pkt.pts;
 	
 	gettimeofday(&start, NULL);
+	printf("write interval: %lld ms, ", (long long) timediff(&last_write));
         retcd = av_write_frame(ffmpeg->oc, &pkt);
-	printf("wrote %d bytes, delay: %lld ms, speed: %f MBps\n", pkt.size, (long long) timediff(&start), MB_PER_SEC(pkt.size, timediff(&start)));
+	total_size += pkt.size;
+	printf("wrote %d/%zu bytes, delay_per_frame: %lld ms, delay_per_kb: %lld ms, instant_speed: %f MBps, average_speed: %f MBps\n", pkt.size, total_size, (long long) timediff(&start),(long long) (timediff(&start)*1024/pkt.size), MB_PER_SEC(pkt.size, timediff(&start)), MB_PER_SEC(total_size, timediff(&ffmpeg->start_time)));
+	gettimeofday(&last_write, NULL);
         ffmpeg->last_pts = pkt.pts;
     }
 //        MOTION_LOG(ERR, TYPE_ENCODER, NO_ERRNO, "%s: pts:%d dts:%d stream:%d interval %d",pkt.pts,pkt.dts,ffmpeg->video_st->time_base.den,pts_interval);
