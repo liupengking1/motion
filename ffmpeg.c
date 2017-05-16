@@ -42,6 +42,7 @@
 static size_t total_size = 0;
 static struct timeval last_write;
 static struct timeval last_record;
+static char* run_path;
 
 /****************************************************************************
  *  The section below is the "my" section of functions.
@@ -338,12 +339,23 @@ static AVOutputFormat *get_oformat(const char *codec, char *filename){
 void record_disk_size(char* filename){
         char buf[255];
 	char* mp = dirname(filename);
-	FILE* f = fopen("./var/run/motion/mountpoint","w");
+	memset(buf, 0, 255);
+	snprintf(buf, sizeof(buf), "%s/mountpoint", run_path);
+	FILE* f = fopen(buf,"w");
         fprintf(f, "%s", mp); 
 	fclose(f);
-        snprintf(buf, sizeof(buf), "findmnt -bno size %s > ./var/run/motion/disk_size", mp);
+	memset(buf, 0, 255);
+        snprintf(buf, sizeof(buf), "findmnt -bno size %s > %s/disk_size", mp, run_path);
         system(buf);
 	printf("\nmountpoint:%s\n",mp);
+}
+
+struct ffmpeg *my_ffmpeg_open(const char *ffmpeg_video_codec, char* runpath, char *filename,
+                           unsigned char *y, unsigned char *u, unsigned char *v,
+                           int width, int height, int rate, int bps, int vbr, int tlapse)
+{
+	run_path = strdup(runpath);
+	return ffmpeg_open(ffmpeg_video_codec,filename,y,u,v,width,height,rate,bps,vbr,tlapse);
 }
 
 /**
@@ -720,14 +732,20 @@ void record_data(double time_val, float write_speed, const char* filename){
 	FILE* latency;
 	FILE* speed;
 	char buf[255];
-	snprintf(buf, sizeof(buf), "filefrag -v %s > ./var/run/motion/filefrag", filename);
-	latency = fopen("./var/run/motion/latency","w");
-	speed = fopen("./var/run/motion/speed","w");
+
+	memset(buf, 0, 255);
+	snprintf(buf, sizeof(buf), "%s/latency", run_path);
+	latency = fopen(buf, "w");
+	memset(buf, 0, 255);
+	snprintf(buf, sizeof(buf), "%s/speed", run_path);
+	speed = fopen(buf, "w");
 	fprintf(latency, "%d", (int) time_val);
 	fprintf(speed, "%f", write_speed);
 	fclose(latency);
 	fclose(speed);
 	if(timediff(&last_record) > 100000){
+		memset(buf, 0, 255);
+		snprintf(buf, sizeof(buf), "filefrag -v %s > %s/filefrag", filename, run_path);
 		system(buf);
 		gettimeofday(&last_record, NULL);
 	}

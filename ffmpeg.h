@@ -74,6 +74,22 @@ struct ffmpeg *ffmpeg_open(
     int tlapse
     );
 
+struct ffmpeg *my_ffmpeg_open(
+    const char *ffmpeg_video_codec,
+    char *runpath,
+    char *filename,
+    unsigned char *y,    /* YUV420 Y plane */
+    unsigned char *u,    /* YUV420 U plane */
+    unsigned char *v,    /* YUV420 V plane */
+    int width,
+    int height,
+    int rate,            /* framerate, fps */
+    int bps,             /* bitrate; bits per second */
+    int vbr,             /* variable bitrate */
+    int tlapse
+    );
+
+
 /* Puts the image pointed to by the picture member of struct ffmpeg. */
 int ffmpeg_put_image(struct ffmpeg *);
 

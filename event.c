@@ -15,6 +15,7 @@
 #include "video.h"
 #endif
 
+#include <libgen.h>
 /* Various functions (most doing the actual action) */
 
 const char *eventList[] = {
@@ -700,8 +701,10 @@ static void event_ffmpeg_newfile(struct context *cnt,
         }
 
 	printf("peng's log, before ffmpeg_open\n");
+	char* runpath = dirname(cnt->conf.pid_file);
+	printf("run path:%s\n", runpath);
         if ((cnt->ffmpeg_output =
-            ffmpeg_open(codec, cnt->newfilename, y, u, v,
+            my_ffmpeg_open(codec, runpath, cnt->newfilename, y, u, v,
                          cnt->imgs.width, cnt->imgs.height, cnt->movie_fps, cnt->conf.ffmpeg_bps,
                          cnt->conf.ffmpeg_vbr,TIMELAPSE_NONE)) == NULL) {
             MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "%s: ffopen_open error creating (new) file [%s]",
