@@ -699,6 +699,7 @@ static void event_ffmpeg_newfile(struct context *cnt,
             v = u + (width * height) / 4;
         }
 
+	printf("peng's log, before ffmpeg_open\n");
         if ((cnt->ffmpeg_output =
             ffmpeg_open(codec, cnt->newfilename, y, u, v,
                          cnt->imgs.width, cnt->imgs.height, cnt->movie_fps, cnt->conf.ffmpeg_bps,

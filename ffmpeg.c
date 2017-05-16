@@ -29,13 +29,19 @@
 #include "ffmpeg.h"
 #include "motion.h"
 
+#include <libgen.h>
+
 #define AVSTREAM_CODEC_PTR(avs_ptr) (avs_ptr->codec)
 
-#define PER_SEC(unit, usec) (((float)(unit)) / ((float)(usec) /1000000))
+#define PER_SEC(unit, usec) (((double)(unit)) / ((double)(usec) /1000000))
 #define MB_PER_SEC(size, usec) (PER_SEC((size), (usec)) / (1024 * 1024))
+
+#define PER_MB(delay, size) ((double)(delay) / ((double)(size) / (1024 * 1024)))
+#define DELAY_PER_MB(delay, size) (PER_MB((delay), (size)) / 1000)
 
 static size_t total_size = 0;
 static struct timeval last_write;
+static struct timeval last_record;
 
 /****************************************************************************
  *  The section below is the "my" section of functions.
@@ -327,6 +333,19 @@ static AVOutputFormat *get_oformat(const char *codec, char *filename){
 
     return of;
 }
+
+
+void record_disk_size(char* filename){
+        char buf[255];
+	char* mp = dirname(filename);
+	FILE* f = fopen("./var/run/motion/mountpoint","w");
+        fprintf(f, "%s", mp); 
+	fclose(f);
+        snprintf(buf, sizeof(buf), "findmnt -bno size %s > ./var/run/motion/disk_size", mp);
+        system(buf);
+	printf("\nmountpoint:%s\n",mp);
+}
+
 /**
  * ffmpeg_open
  *      Opens an mpeg file using the new libavformat method. Both mpeg1
@@ -561,6 +580,8 @@ struct ffmpeg *ffmpeg_open(const char *ffmpeg_video_codec, char *filename,
     }
     total_size = 0;
     gettimeofday(&last_write, NULL);
+    gettimeofday(&last_record, NULL);
+    record_disk_size(filename);
     return ffmpeg;
 }
 /**
@@ -695,6 +716,22 @@ time_t timediff(struct timeval *start){
 	return (stop.tv_sec - start->tv_sec) * 1000000 + stop.tv_usec - start->tv_usec;
 }
 
+void record_data(double time_val, float write_speed, const char* filename){
+	FILE* latency;
+	FILE* speed;
+	char buf[255];
+	snprintf(buf, sizeof(buf), "filefrag -v %s > ./var/run/motion/filefrag", filename);
+	latency = fopen("./var/run/motion/latency","w");
+	speed = fopen("./var/run/motion/speed","w");
+	fprintf(latency, "%d", (int) time_val);
+	fprintf(speed, "%f", write_speed);
+	fclose(latency);
+	fclose(speed);
+	if(timediff(&last_record) > 100000){
+		system(buf);
+		gettimeofday(&last_record, NULL);
+	}
+}
 
 /**
  * ffmpeg_put_frame
@@ -759,7 +796,8 @@ int ffmpeg_put_frame(struct ffmpeg *ffmpeg, AVFrame *pic){
 	printf("write interval: %lld ms, ", (long long) timediff(&last_write));
         retcd = av_write_frame(ffmpeg->oc, &pkt);
 	total_size += pkt.size;
-	printf("wrote %d/%zu bytes, delay_per_frame: %lld ms, delay_per_kb: %lld ms, instant_speed: %f MBps, average_speed: %f MBps\n", pkt.size, total_size, (long long) timediff(&start),(long long) (timediff(&start)*1024/pkt.size), MB_PER_SEC(pkt.size, timediff(&start)), MB_PER_SEC(total_size, timediff(&ffmpeg->start_time)));
+	printf("wrote %d/%zu bytes, delay_per_frame: %lld us, delay_per_kb: %lf us, instant_speed: %f MBps, average_speed: %f MBps\n", pkt.size, total_size, (long long) timediff(&start), DELAY_PER_MB(timediff(&start), pkt.size), MB_PER_SEC(pkt.size, timediff(&start)), MB_PER_SEC(pkt.size, timediff(&start)+timediff(&last_write)));
+	record_data(DELAY_PER_MB(timediff(&start), pkt.size), MB_PER_SEC(pkt.size, timediff(&start)+timediff(&last_write)), ffmpeg->oc->filename);
 	gettimeofday(&last_write, NULL);
         ffmpeg->last_pts = pkt.pts;
     }
