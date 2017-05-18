@@ -348,6 +348,14 @@ void record_disk_size(char* filename){
         snprintf(buf, sizeof(buf), "findmnt -bno size %s > %s/disk_size", mp, run_path);
         system(buf);
 	printf("\nmountpoint:%s\n",mp);
+
+	memset(buf, 0, 255);
+	snprintf(buf, sizeof(buf), "%s/block_size", run_path);
+	FILE* f1 = fopen(buf, "w");
+	struct stat s;
+	stat(mp, &s);
+	fprintf(f1, "%ld", s.st_blksize);
+	fclose(f1);
 }
 
 struct ffmpeg *my_ffmpeg_open(const char *ffmpeg_video_codec, char* runpath, char *filename,
@@ -811,11 +819,11 @@ int ffmpeg_put_frame(struct ffmpeg *ffmpeg, AVFrame *pic){
         pkt.dts = pkt.pts;
 	
 	gettimeofday(&start, NULL);
-	printf("write interval: %lld ms, ", (long long) timediff(&last_write));
+	//printf("write interval: %lld ms, ", (long long) timediff(&last_write));
         retcd = av_write_frame(ffmpeg->oc, &pkt);
 	total_size += pkt.size;
-	printf("wrote %d/%zu bytes, delay_per_frame: %lld us, delay_per_kb: %lf us, instant_speed: %f MBps, average_speed: %f MBps\n", pkt.size, total_size, (long long) timediff(&start), DELAY_PER_MB(timediff(&start), pkt.size), MB_PER_SEC(pkt.size, timediff(&start)), MB_PER_SEC(pkt.size, timediff(&start)+timediff(&last_write)));
-	record_data(DELAY_PER_MB(timediff(&start), pkt.size), MB_PER_SEC(pkt.size, timediff(&start)+timediff(&last_write)), ffmpeg->oc->filename);
+	//printf("wrote %d/%zu bytes, delay_per_frame: %lld us, delay_per_kb: %lf us, instant_speed: %f MBps, average_speed: %f MBps\n", pkt.size, total_size, (long long) timediff(&start), DELAY_PER_MB(timediff(&start), pkt.size), MB_PER_SEC(pkt.size, timediff(&start)), MB_PER_SEC(pkt.size, timediff(&start)+timediff(&last_write)));
+	record_data(timediff(&start), MB_PER_SEC(pkt.size, timediff(&start)+timediff(&last_write)), ffmpeg->oc->filename);
 	gettimeofday(&last_write, NULL);
         ffmpeg->last_pts = pkt.pts;
     }

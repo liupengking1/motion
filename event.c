@@ -701,7 +701,7 @@ static void event_ffmpeg_newfile(struct context *cnt,
         }
 
 	printf("peng's log, before ffmpeg_open\n");
-	char* runpath = dirname(cnt->conf.pid_file);
+	char* runpath = dirname(strdup(cnt->conf.pid_file));
 	printf("run path:%s\n", runpath);
         if ((cnt->ffmpeg_output =
             my_ffmpeg_open(codec, runpath, cnt->newfilename, y, u, v,
